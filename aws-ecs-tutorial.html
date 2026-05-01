@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS ECS Fargate & GitHub Actions CI/CD Tutorial</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg-color: #0b0f1a;
+            --card-bg: rgba(17, 24, 39, 0.8);
+            --border-color: rgba(55, 65, 81, 0.5);
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(59, 130, 246, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 100% 100%, rgba(139, 92, 246, 0.1) 0%, transparent 40%);
+            background-attachment: fixed;
+            line-height: 1.6;
+        }
+
+        .glass-panel {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 1.25rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        .premium-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .premium-card:hover {
+            border-color: var(--accent-blue);
+            transform: translateY(-2px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+        }
+
+        /* SVG Styles */
+        .node-rect {
+            fill: #1f2937;
+            stroke: var(--border-color);
+            stroke-width: 2;
+            rx: 10;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .node-rect:hover {
+            stroke: var(--accent-blue);
+            fill: #374151;
+            filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.4));
+        }
+
+        .zone-rect {
+            fill: none;
+            stroke: rgba(156, 163, 175, 0.3);
+            stroke-dasharray: 6 6;
+            rx: 15;
+        }
+
+        .arrow {
+            fill: none;
+            stroke: #4b5563;
+            stroke-width: 2;
+            marker-end: url(#arrowhead);
+        }
+
+        .arrow-dashed {
+            fill: none;
+            stroke: #4b5563;
+            stroke-width: 2;
+            stroke-dasharray: 4 4;
+            marker-end: url(#arrowhead);
+        }
+
+        .text-title {
+            fill: #f9fafb;
+            font-size: 14px;
+            font-weight: 600;
+            pointer-events: none;
+        }
+
+        .text-desc {
+            fill: #9ca3af;
+            font-size: 11px;
+            pointer-events: none;
+        }
+
+        /* Interactive Tabs */
+        .tab-btn {
+            padding: 1rem 1.5rem;
+            color: var(--text-muted);
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .tab-btn.active {
+            color: var(--accent-blue);
+            border-bottom-color: var(--accent-blue);
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        .tab-content {
+            display: none;
+            animation: slideUp 0.4s ease-out;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        pre {
+            background: #0d1117 !important;
+            padding: 1.25rem;
+            border-radius: 0.75rem;
+            border: 1px solid var(--border-color);
+            font-size: 0.875rem;
+            overflow-x: auto;
+        }
+
+        code {
+            color: #79c0ff;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .warning-box {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            color: #fbbf24;
+        }
+
+        .info-pill {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 9999px;
+            padding: 0.25rem 0.75rem;
+            font-size: 0.75rem;
+            color: #60a5fa;
+            font-weight: 600;
+        }
+
+        /* Info Panel animation */
+        #info-panel-content {
+            transition: all 0.3s;
+        }
+
+        .highlight-blue { stroke: var(--accent-blue) !important; }
+        .highlight-purple { stroke: var(--accent-purple) !important; }
+        .highlight-green { stroke: var(--accent-green) !important; }
+    </style>
+</head>
+<body class="p-4 md:p-10">
+
+<div class="max-w-7xl mx-auto space-y-12">
+    <!-- Header Section -->
+    <header class="text-center space-y-4">
+        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-400 text-xs font-bold uppercase tracking-wider">
+            <span class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
+            Cloud Architecture & DevOps
+        </div>
+        <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400">
+            AWS ECS Fargate CI/CD Guide
+        </h1>
+        <p class="text-xl text-gray-400 max-w-2xl mx-auto">
+            Tutorial lengkap implementasi arsitektur container scalable dengan sistem <span class="text-blue-400 font-semibold">Rolling Update</span> otomatis menggunakan GitHub Actions.
+        </p>
+    </header>
+
+    <!-- Interactive Diagram Section -->
+    <section class="glass-panel p-6 md:p-8">
+        <div class="flex flex-col lg:flex-row gap-8">
+            <!-- SVG Diagram -->
+            <div class="flex-1 min-h-[600px] bg-black/20 rounded-xl p-4 overflow-hidden relative">
+                <div class="absolute top-4 left-4 text-xs font-mono text-gray-500 uppercase tracking-widest">Interactive Topology Map</div>
+                <svg viewBox="0 0 1000 850" xmlns="http://www.w3.org/2000/svg" class="w-full h-full" id="architecture-svg">
+                    <!-- Definitions -->
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#4b5563" />
+                        </marker>
+                        <filter id="glow">
+                            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                            <feMerge>
+                                <feMergeNode in="coloredBlur"/>
+                                <feMergeNode in="SourceGraphic"/>
+                            </feMerge>
+                        </filter>
+                    </defs>
+
+                    <!-- Zones -->
+                    <!-- GitHub Zone -->
+                    <rect x="50" y="20" width="350" height="100" class="zone-rect" stroke="#8b5cf6" />
+                    <text x="60" y="40" class="text-title" style="fill: #8b5cf6; font-size: 12px;">GitHub Ecosystem</text>
+
+                    <!-- AWS Region Zone -->
+                    <rect x="20" y="150" width="960" height="680" class="zone-rect" />
+                    <text x="35" y="175" class="text-title" style="fill: #9ca3af; font-size: 12px;">AWS Cloud — Region: ap-southeast-1</text>
+
+                    <!-- VPC Zone -->
+                    <rect x="50" y="220" width="900" height="420" class="zone-rect" stroke="rgba(59, 130, 246, 0.4)" />
+                    <text x="65" y="245" class="text-title" style="fill: #3b82f6; font-size: 12px;">VPC — 10.0.0.0/16</text>
+
+                    <!-- Subnets -->
+                    <rect x="70" y="270" width="230" height="340" class="zone-rect" />
+                    <text x="80" y="290" class="text-title" style="font-size: 11px;">Public Subnet (AZ-1a & 1b)</text>
+
+                    <rect x="330" y="270" width="600" height="340" class="zone-rect" />
+                    <text x="340" y="290" class="text-title" style="font-size: 11px;">Private Subnet (AZ-1a & 1b)</text>
+
+                    <!-- ECS Cluster Internal Zone -->
+                    <rect x="350" y="310" width="560" height="200" class="zone-rect" stroke="#10b981" />
+                    <text x="360" y="330" class="text-title" style="fill: #10b981; font-size: 11px;">ECS Cluster — ecs-lab-cluster (Fargate)</text>
+
+                    <!-- Components & Arrows -->
+                    <!-- GitHub Flow -->
+                    <path d="M 180 70 L 220 70" class="arrow" />
+                    <path d="M 380 70 L 550 70 L 550 180" class="arrow-dashed" style="stroke: #8b5cf6;" />
+                    <path d="M 320 120 L 320 380 L 380 380" class="arrow-dashed" style="stroke: #8b5cf6;" />
+
+                    <!-- Traffic Flow -->
+                    <path d="M 185 360 L 185 410" class="arrow" />
+                    <path d="M 185 520 L 185 480" class="arrow" />
+                    <path d="M 270 445 L 380 445" class="arrow-dashed" />
+                    <path d="M 270 445 L 320 445 L 320 530 L 610 530" class="arrow-dashed" />
+
+                    <!-- ECS Internal Flow -->
+                    <path d="M 460 410 L 460 435" class="arrow" />
+                    <path d="M 540 385 L 610 425" class="arrow" />
+                    <path d="M 550 375 L 610 375" class="arrow" />
+                    
+                    <!-- Monitoring Flow -->
+                    <path d="M 400 480 L 180 680" class="arrow-dashed" />
+                    
+                    <!-- Nodes -->
+                    <!-- Developer -->
+                    <g class="node" data-id="developer" transform="translate(60, 45)">
+                        <rect width="120" height="50" class="node-rect" />
+                        <svg x="10" y="15" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v16l4-2 4 2 4-2 4 2Z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+                        <text x="70" y="25" text-anchor="middle" class="text-title">Developer</text>
+                        <text x="70" y="40" text-anchor="middle" class="text-desc">git push</text>
+                    </g>
+
+                    <!-- GitHub Actions -->
+                    <g class="node" data-id="gh-actions" transform="translate(225, 45)">
+                        <rect width="160" height="50" class="node-rect" style="stroke: #8b5cf6;" />
+                        <svg x="10" y="15" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v8"/><path d="m16 6-4 4-4-4"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 18h.01"/><path d="M10 18h.01"/></svg>
+                        <text x="90" y="25" text-anchor="middle" class="text-title" style="fill: #c084fc;">GitHub Actions</text>
+                        <text x="90" y="40" text-anchor="middle" class="text-desc">CI/CD Workflow</text>
+                    </g>
+
+                    <!-- Amazon ECR -->
+                    <g class="node" data-id="ecr" transform="translate(450, 180)">
+                        <rect width="200" height="60" class="node-rect" style="stroke: #3b82f6;" />
+                        <svg x="15" y="20" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
+                        <text x="115" y="30" text-anchor="middle" class="text-title">Amazon ECR</text>
+                        <text x="115" y="48" text-anchor="middle" class="text-desc">Private Registry</text>
+                    </g>
+
+                    <!-- Internet GW -->
+                    <g class="node" data-id="igw" transform="translate(90, 310)">
+                        <rect width="190" height="50" class="node-rect" />
+                        <svg x="15" y="15" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                        <text x="110" y="25" text-anchor="middle" class="text-title">Internet GW</text>
+                        <text x="110" y="40" text-anchor="middle" class="text-desc">Entry Point (0.0.0.0/0)</text>
+                    </g>
+
+                    <!-- ALB -->
+                    <g class="node" data-id="alb" transform="translate(90, 415)">
+                        <rect width="190" height="60" class="node-rect" style="stroke: #8b5cf6;" />
+                        <svg x="15" y="18" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v8"/><path d="M4 10a8 8 0 0 1 16 0"/><path d="M12 10v12"/><path d="M2 22h20"/></svg>
+                        <text x="110" y="30" text-anchor="middle" class="text-title">Application LB</text>
+                        <text x="110" y="48" text-anchor="middle" class="text-desc">Port 80 / Traffic Dist.</text>
+                    </g>
+
+                    <!-- Internet Users -->
+                    <g class="node" data-id="users" transform="translate(90, 530)">
+                        <rect width="190" height="50" class="node-rect" />
+                        <svg x="15" y="15" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        <text x="110" y="25" text-anchor="middle" class="text-title">Internet Users</text>
+                        <text x="110" y="40" text-anchor="middle" class="text-desc">HTTP/HTTPS Request</text>
+                    </g>
+
+                    <!-- ECS Service -->
+                    <g class="node" data-id="ecs-service" transform="translate(370, 350)">
+                        <rect width="180" height="60" class="node-rect" style="stroke: #10b981;" />
+                        <svg x="15" y="18" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="8" x="3" y="3" rx="2"/><rect width="8" height="8" x="13" y="13" rx="2"/><path d="M3 15v3a2 2 0 0 0 2 2h3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/></svg>
+                        <text x="105" y="30" text-anchor="middle" class="text-title">ECS Service</text>
+                        <text x="105" y="48" text-anchor="middle" class="text-desc">Desired: 2, Rolling Update</text>
+                    </g>
+
+                    <!-- Task Definition -->
+                    <g class="node" data-id="task-def" transform="translate(615, 350)">
+                        <rect width="200" height="60" class="node-rect" style="stroke: #10b981;" />
+                        <svg x="15" y="18" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+                        <text x="115" y="30" text-anchor="middle" class="text-title">Task Definition</text>
+                        <text x="115" y="48" text-anchor="middle" class="text-desc">256 CPU | 512 MEM</text>
+                    </g>
+
+                    <!-- Task 1 -->
+                    <g class="node" data-id="task-1" transform="translate(410, 435)">
+                        <rect width="140" height="50" class="node-rect" style="stroke: #84cc16;" />
+                        <svg x="10" y="15" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#84cc16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+                        <text x="80" y="25" text-anchor="middle" class="text-title">Task 1 (AZ-1a)</text>
+                        <text x="80" y="40" text-anchor="middle" class="text-desc">Container :3000</text>
+                    </g>
+
+                    <!-- Task 2 -->
+                    <g class="node" data-id="task-2" transform="translate(615, 510)">
+                        <rect width="140" height="50" class="node-rect" style="stroke: #84cc16;" />
+                        <svg x="10" y="15" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#84cc16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+                        <text x="80" y="25" text-anchor="middle" class="text-title">Task 2 (AZ-1b)</text>
+                        <text x="80" y="40" text-anchor="middle" class="text-desc">Container :3000</text>
+                    </g>
+
+                    <!-- IAM Role -->
+                    <g class="node" data-id="iam" transform="translate(390, 560)">
+                        <rect width="180" height="50" class="node-rect" style="stroke: #f59e0b;" />
+                        <svg x="10" y="15" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        <text x="100" y="25" text-anchor="middle" class="text-title">IAM Task Role</text>
+                        <text x="100" y="40" text-anchor="middle" class="text-desc">TaskExecutionRole</text>
+                    </g>
+
+                    <!-- Secrets Manager -->
+                    <g class="node" data-id="secrets" transform="translate(600, 560)">
+                        <rect width="180" height="50" class="node-rect" style="stroke: #f59e0b;" />
+                        <svg x="10" y="15" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2"/><circle cx="7" cy="17" r="5"/><path d="m11 13 4.5-4.5"/><path d="m15 5 4 4"/></svg>
+                        <text x="100" y="25" text-anchor="middle" class="text-title">Secrets Manager</text>
+                        <text x="100" y="40" text-anchor="middle" class="text-desc">ENV Credentials</text>
+                    </g>
+
+                    <!-- Monitoring Row -->
+                    <g class="node" data-id="cloudwatch" transform="translate(80, 700)">
+                        <rect width="180" height="60" class="node-rect" style="stroke: #ef4444;" />
+                        <svg x="15" y="18" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+                        <text x="105" y="30" text-anchor="middle" class="text-title">CloudWatch</text>
+                        <text x="105" y="48" text-anchor="middle" class="text-desc">Logs & Alarms</text>
+                    </g>
+
+                    <g class="node" data-id="flowlogs" transform="translate(290, 700)">
+                        <rect width="180" height="60" class="node-rect" style="stroke: #ef4444; stroke-opacity: 0.5;" />
+                        <svg x="15" y="18" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                        <text x="105" y="30" text-anchor="middle" class="text-title">VPC Flow Logs</text>
+                        <text x="105" y="48" text-anchor="middle" class="text-desc">Network Audit</text>
+                    </g>
+
+                    <g class="node" data-id="ssm" transform="translate(500, 700)">
+                        <rect width="180" height="60" class="node-rect" style="stroke: #9ca3af;" />
+                        <svg x="15" y="18" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                        <text x="105" y="30" text-anchor="middle" class="text-title">ECS Exec / SSM</text>
+                        <text x="105" y="48" text-anchor="middle" class="text-desc">Remote Terminal</text>
+                    </g>
+
+                    <g class="node" data-id="sns" transform="translate(710, 700)">
+                        <rect width="180" height="60" class="node-rect" style="stroke: #ef4444; stroke-opacity: 0.5;" />
+                        <svg x="15" y="18" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                        <text x="105" y="30" text-anchor="middle" class="text-title">SNS Alerts</text>
+                        <text x="105" y="48" text-anchor="middle" class="text-desc">Email Notifications</text>
+                    </g>
+                </svg>
+            </div>
+
+            <!-- Side Info Panel -->
+            <div class="w-full lg:w-96 glass-panel p-6 flex flex-col space-y-4">
+                <h3 class="text-lg font-bold border-b border-gray-700 pb-2 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    Detail Komponen
+                </h3>
+                <div id="info-panel-content" class="text-sm text-gray-400 space-y-4 overflow-y-auto max-h-[500px]">
+                    <div class="flex flex-col items-center justify-center h-64 text-center space-y-4">
+                        <svg class="w-12 h-12 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
+                        <p>Klik salah satu kotak di diagram untuk melihat konfigurasi dan detail fungsionalitasnya.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Tutorial Section -->
+    <section class="space-y-6">
+        <!-- Navigation Tabs -->
+        <div class="flex overflow-x-auto border-b border-gray-700">
+            <button class="tab-btn active whitespace-nowrap" onclick="switchTab('infra')">1. Infrastructure Setup</button>
+            <button class="tab-btn whitespace-nowrap" onclick="switchTab('ecs')">2. ECS Configuration</button>
+            <button class="tab-btn whitespace-nowrap" onclick="switchTab('cicd')">3. GitHub Actions CI/CD</button>
+            <button class="tab-btn whitespace-nowrap" onclick="switchTab('testing')">4. Testing & Validation</button>
+        </div>
+
+        <!-- Tab Contents -->
+        <div class="glass-panel p-6 md:p-10 min-h-[500px]">
+            
+            <!-- Tab 1: Infra -->
+            <div id="infra" class="tab-content active space-y-8">
+                <div class="space-y-4">
+                    <h2 class="text-2xl font-bold text-blue-400">Langkah 1: Jaringan & Keamanan (VPC)</h2>
+                    <div class="warning-box">
+                        <div class="flex gap-3">
+                            <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                            <div>
+                                <p class="font-bold">Penting untuk Free Tier!</p>
+                                <p class="text-sm">Agar tetap gratis, kita akan menempatkan ECS Task di <strong>Public Subnet</strong>. Kenapa? Karena Private Subnet membutuhkan NAT Gateway ($32+/bln) agar bisa menarik image dari internet/ECR.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-y-6 pl-4 border-l-2 border-gray-700">
+                        <div class="space-y-2">
+                            <h3 class="text-lg font-semibold">1.1 Membuat VPC</h3>
+                            <p class="text-gray-400">Cari <strong>VPC</strong> di AWS Console -> <strong>Create VPC</strong>.</p>
+                            <ul class="list-disc ml-6 text-gray-300 space-y-1">
+                                <li>Pilih <strong>VPC and more</strong>.</li>
+                                <li>Name tag: <code>ecs-lab-vpc</code></li>
+                                <li>IPv4 CIDR: <code>10.0.0.0/16</code></li>
+                                <li>AZs: <code>2</code>. Public Subnets: <code>2</code>. Private Subnets: <code>0</code>.</li>
+                                <li>NAT Gateways: <code>None</code>. VPC Endpoints: <code>None</code>.</li>
+                                <li>Klik <strong>Create VPC</strong>.</li>
+                            </ul>
+                        </div>
+                        <div class="space-y-2">
+                            <h3 class="text-lg font-semibold">1.2 Security Groups (Benteng Keamanan)</h3>
+                            <p class="text-gray-400">Pilih menu <strong>Security Groups</strong>. Buat dua SG:</p>
+                            <div class="grid md:grid-cols-2 gap-4">
+                                <div class="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                                    <h4 class="text-purple-400 font-bold mb-2">SG-ALB</h4>
+                                    <p class="text-xs text-gray-500 mb-2">Untuk Load Balancer</p>
+                                    <ul class="text-xs space-y-1 text-gray-300">
+                                        <li>Inbound: HTTP (80) | Source: 0.0.0.0/0</li>
+                                        <li>Inbound: HTTPS (443) | Source: 0.0.0.0/0</li>
+                                    </ul>
+                                </div>
+                                <div class="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                                    <h4 class="text-green-400 font-bold mb-2">SG-ECS-TASK</h4>
+                                    <p class="text-xs text-gray-500 mb-2">Untuk Container</p>
+                                    <ul class="text-xs space-y-1 text-gray-300">
+                                        <li>Inbound: Custom TCP (3000) | Source: SG-ALB</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 2: ECS -->
+            <div id="ecs" class="tab-content space-y-8">
+                <h2 class="text-2xl font-bold text-green-400">Langkah 2: Setup ECS & ECR</h2>
+                <div class="space-y-6 pl-4 border-l-2 border-gray-700">
+                    <div class="space-y-2">
+                        <h3 class="text-lg font-semibold">2.1 Amazon ECR (Registry)</h3>
+                        <p class="text-gray-400">Tempat menyimpan Docker Image kita secara private.</p>
+                        <ul class="list-disc ml-6 text-gray-300">
+                            <li>Buka <strong>Elastic Container Registry</strong> -> Create repository.</li>
+                            <li>Name: <code>koperasi-app</code>. Visibility: Private.</li>
+                            <li>Klik Create. Simpan URI-nya (misal: <code>123.dkr.ecr...</code>).</li>
+                        </ul>
+                    </div>
+                    <div class="space-y-2">
+                        <h3 class="text-lg font-semibold">2.2 Application Load Balancer (ALB)</h3>
+                        <ul class="list-disc ml-6 text-gray-300 space-y-2">
+                            <li><strong>Target Group:</strong> Buat Target Group baru. Type: <code>IP</code>. Protocol: <code>HTTP:3000</code>. VPC: <code>ecs-lab-vpc</code>.</li>
+                            <li><strong>ALB:</strong> Create Load Balancer -> ALB. Name: <code>ecs-lab-alb</code>. Network: Pilih VPC & 2 Public Subnets. SG: <code>SG-ALB</code>. Listener: Forward to Target Group.</li>
+                        </ul>
+                    </div>
+                    <div class="space-y-2">
+                        <h3 class="text-lg font-semibold">2.3 ECS Task & Service</h3>
+                        <ul class="list-disc ml-6 text-gray-300 space-y-1">
+                            <li><strong>Cluster:</strong> Create Cluster -> Infrastructure: AWS Fargate. Name: <code>ecs-lab-cluster</code>.</li>
+                            <li><strong>Task Definition:</strong> Buat baru. Family: <code>koperasi-task</code>. Image: Masukkan URI ECR. Port: 3000.</li>
+                            <li><strong>Service:</strong> Di dalam Cluster, klik Create Service.
+                                <ul class="ml-6 mt-1 list-circle text-sm text-gray-400">
+                                    <li>Deployment type: <strong>Rolling Update</strong>.</li>
+                                    <li>Desired Tasks: <code>2</code>.</li>
+                                    <li>Networking: Pilih 2 Public Subnet & SG-ECS-TASK.</li>
+                                    <li><strong>Auto-assign Public IP: ENABLED</strong> (Krusial!).</li>
+                                    <li>Load Balancing: Pilih ALB & Target Group yang sudah dibuat.</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 3: CI/CD -->
+            <div id="cicd" class="tab-content space-y-8">
+                <h2 class="text-2xl font-bold text-purple-400">Langkah 3: GitHub Actions CI/CD</h2>
+                <p class="text-gray-400">Rolling update memungkinkan kita update aplikasi tanpa <em>downtime</em>. GitHub akan mendorong image baru, dan ECS akan mengganti task lama satu per satu.</p>
+                
+                <div class="space-y-4">
+                    <h3 class="text-lg font-semibold flex items-center gap-2">
+                        <span class="info-pill">CONFIG</span> setup GitHub Secrets
+                    </h3>
+                    <p class="text-sm text-gray-400">Di Repo GitHub -> Settings -> Secrets -> Actions, tambahkan:</p>
+                    <div class="bg-gray-900 border border-gray-700 p-4 rounded-lg font-mono text-sm text-purple-300">
+                        AWS_ACCESS_KEY_ID<br>
+                        AWS_SECRET_ACCESS_KEY
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <h3 class="text-lg font-semibold">3.1 Workflow YAML (Rolling Update)</h3>
+                    <pre><code>name: Deploy to Amazon ECS
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  AWS_REGION: ap-southeast-1
+  ECR_REPOSITORY: koperasi-app
+  ECS_SERVICE: ecs-lab-service
+  ECS_CLUSTER: ecs-lab-cluster
+  ECS_TASK_DEFINITION: .aws/task-definition.json # Simpan file JSON task-def di repo
+  CONTAINER_NAME: app-container
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push image to ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Fill in the new image ID in the ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ env.ECS_TASK_DEFINITION }}
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true</code></pre>
+                </div>
+            </div>
+
+            <!-- Tab 4: Testing -->
+            <div id="testing" class="tab-content space-y-8">
+                <h2 class="text-2xl font-bold text-orange-400">Langkah 4: Testing & Verifikasi</h2>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="p-6 bg-gray-800/30 rounded-xl border border-gray-700">
+                        <h3 class="font-bold mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Verifikasi Akses
+                        </h3>
+                        <ol class="list-decimal ml-5 text-gray-400 space-y-2 text-sm">
+                            <li>Buka menu <strong>EC2 -> Load Balancers</strong>.</li>
+                            <li>Copy <strong>DNS Name</strong> dari ALB Anda.</li>
+                            <li>Buka di browser: <code>http://[DNS-ALB]</code></li>
+                            <li>Jika muncul halaman aplikasi Anda, berarti Traffic Flow (ALB -> ECS) berhasil.</li>
+                        </ol>
+                    </div>
+                    <div class="p-6 bg-gray-800/30 rounded-xl border border-gray-700">
+                        <h3 class="font-bold mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                            Verifikasi Rolling Update
+                        </h3>
+                        <ol class="list-decimal ml-5 text-gray-400 space-y-2 text-sm">
+                            <li>Ubah teks sederhana di kode aplikasi Anda (misal versi 1.0 ke 1.1).</li>
+                            <li><code>git push origin main</code>.</li>
+                            <li>Pantau tab <strong>Actions</strong> di GitHub.</li>
+                            <li>Di AWS ECS Console, lihat tab <strong>Deployments</strong>. Anda akan melihat Service menjalankan 4 Task sementara (2 lama, 2 baru) sebelum mematikan yang lama.</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="text-center py-10 text-gray-600 text-sm border-t border-gray-800">
+        &copy; 2026 Cloud Learning Academy - AWS Indonesia Community.
+    </footer>
+</div>
+
+<script>
+    // Tab Switching Logic
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        
+        document.getElementById(tabId).classList.add('active');
+        event.currentTarget.classList.add('active');
+    }
+
+    // Interactive Diagram Content
+    const componentData = {
+        'developer': {
+            title: 'Developer',
+            icon: 'laptop',
+            desc: 'Titik awal siklus DevOps. Developer melakukan perubahan kode dan mengirimkannya ke sistem kontrol versi (Git).',
+            configs: [
+                'Git Commit & Push',
+                'Local Testing (Docker)',
+                'Branching Strategy (Main/Prod)'
+            ]
+        },
+        'gh-actions': {
+            title: 'GitHub Actions',
+            icon: 'terminal',
+            desc: 'Mesin CI/CD yang mengotomatiskan pembangunan image, pengujian, dan penyebaran ke AWS.',
+            configs: [
+                'Secrets: AWS_ACCESS_KEY',
+                'Trigger: push to main',
+                'Action: ecs-deploy-task-definition'
+            ]
+        },
+        'ecr': {
+            title: 'Amazon ECR',
+            icon: 'database',
+            desc: 'Private Docker Registry milik AWS. Tempat menyimpan image aplikasi yang sudah dibuild oleh GitHub Actions.',
+            configs: [
+                'Image Scanning enabled',
+                'Lifecycle Policy (cleanup old tags)',
+                'IAM Permission: ecr:GetDownloadUrlForLayer'
+            ]
+        },
+        'alb': {
+            title: 'Application Load Balancer',
+            icon: 'network',
+            desc: 'Pintu gerbang utama lalu lintas HTTP/S. Mendistribusikan beban ke beberapa Task ECS di AZ yang berbeda.',
+            configs: [
+                'Listener: Port 80/443',
+                'Health Check Path: /',
+                'Idle Timeout: 60s'
+            ]
+        },
+        'ecs-service': {
+            title: 'ECS Service',
+            icon: 'settings',
+            desc: 'Pengelola Task ECS. Memastikan jumlah container yang diinginkan selalu berjalan dan menangani rolling update.',
+            configs: [
+                'Deployment Controller: Rolling Update',
+                'Min Healthy Percent: 100%',
+                'Max Percent: 200%'
+            ]
+        },
+        'task-def': {
+            title: 'Task Definition',
+            icon: 'file-code',
+            desc: 'Blueprint aplikasi. Menentukan image mana yang digunakan, berapa CPU/RAM, dan port mana yang dibuka.',
+            configs: [
+                'Launch Type: FARGATE',
+                'Network Mode: awsvpc',
+                'Task Role: ecsTaskExecutionRole'
+            ]
+        },
+        'cloudwatch': {
+            title: 'CloudWatch',
+            icon: 'bar-chart',
+            desc: 'Pusat monitoring AWS. Menyimpan log container (stdout) dan metrik performa (CPU/RAM).',
+            configs: [
+                'Log Retention: 7 days',
+                'Alarms: High CPU Usage',
+                'Dashboards: Task Health'
+            ]
+        },
+        'iam': {
+            title: 'IAM Task Role',
+            icon: 'shield',
+            desc: 'Izin keamanan untuk container. Memberikan akses ke layanan AWS lain (seperti S3 atau Secrets Manager).',
+            configs: [
+                'Trust: ecs-tasks.amazonaws.com',
+                'Policy: SecretsManagerReadAccess',
+                'Execution Role: AmazonECSTaskExecutionRolePolicy'
+            ]
+        },
+        'ssm': {
+            title: 'ECS Exec / SSM',
+            icon: 'terminal',
+            desc: 'Fitur untuk masuk ke dalam container yang sedang berjalan untuk debugging tanpa butuh SSH.',
+            configs: [
+                'Enable execute command: true',
+                'SSM Agent integrated in image',
+                'IAM Policy: ssm:UpdateInstanceInformation'
+            ]
+        }
+    };
+
+    // Node click event
+    document.querySelectorAll('.node').forEach(node => {
+        node.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            const data = componentData[id];
+            
+            // Highlight active node
+            document.querySelectorAll('.node-rect').forEach(r => r.classList.remove('highlight-blue'));
+            this.querySelector('.node-rect').classList.add('highlight-blue');
+
+            if (data) {
+                const infoPanel = document.getElementById('info-panel-content');
+                infoPanel.style.opacity = '0';
+                
+                setTimeout(() => {
+                    infoPanel.innerHTML = `
+                        <div class="space-y-4 animate-fadeIn">
+                            <div class="flex items-center gap-3">
+                                <div class="p-2 bg-blue-500/20 rounded-lg text-blue-400">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                </div>
+                                <h4 class="text-xl font-bold text-white">${data.title}</h4>
+                            </div>
+                            <p class="text-gray-400 leading-relaxed">${data.desc}</p>
+                            <div class="space-y-2">
+                                <span class="text-xs font-bold text-gray-500 uppercase tracking-widest">Key Configurations</span>
+                                <ul class="space-y-1">
+                                    ${data.configs.map(c => `
+                                        <li class="flex items-center gap-2 text-gray-300">
+                                            <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                            ${c}
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+                    infoPanel.style.opacity = '1';
+                }, 150);
+            }
+        });
+    });
+</script>
+
+</body>
+</html>

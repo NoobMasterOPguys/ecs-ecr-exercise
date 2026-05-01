@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Start: ECS & ECR Demo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --secondary: #a855f7;
+            --accent: #22d3ee;
+            --bg: #030712;
+            --card-bg: #111827;
+            --text: #f9fafb;
+            --text-muted: #9ca3af;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .background-glow {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 30%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(168, 85, 247, 0.15) 0%, transparent 50%);
+            z-index: -1;
+        }
+
+        .container {
+            max-width: 900px;
+            mx-auto;
+            margin: 0 auto;
+            padding: 4rem 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 5rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 9999px;
+            color: var(--primary);
+            font-weight: 600;
+            font-size: 0.8rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-bottom: 1.5rem;
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 1.2rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .section-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 2rem;
+            padding: 3rem;
+            margin-bottom: 3rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s ease;
+        }
+
+        .section-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(99, 102, 241, 0.4);
+        }
+
+        h2 {
+            font-size: 1.8rem;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        h2 .num {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            font-size: 1.2rem;
+            color: white;
+        }
+
+        .code-block {
+            background: #000;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            position: relative;
+            margin-top: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .dot-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .red { background: #ff5f56; }
+        .yellow { background: #ffbd2e; }
+        .green { background: #27c93f; }
+
+        pre {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+            color: #d1d5db;
+            overflow-x: auto;
+        }
+
+        .comment { color: #6b7280; }
+        .keyword { color: #c084fc; }
+        .string { color: #4ade80; }
+
+        .info-box {
+            background: rgba(34, 211, 238, 0.05);
+            border-left: 4px solid var(--accent);
+            padding: 1.5rem;
+            border-radius: 0.5rem 1rem 1rem 0.5rem;
+            margin-top: 2rem;
+        }
+
+        .info-box p {
+            font-size: 0.95rem;
+            color: #99f6e4;
+        }
+
+        .pdf-ref {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            background: linear-gradient(to right, rgba(99, 102, 241, 0.1), transparent);
+            padding: 2rem;
+            border-radius: 1.5rem;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.3s ease;
+        }
+
+        .pdf-ref:hover {
+            background: rgba(99, 102, 241, 0.2);
+            border-color: var(--primary);
+        }
+
+        .pdf-icon {
+            font-size: 3rem;
+        }
+
+        footer {
+            text-align: center;
+            padding: 4rem 0;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 2.5rem; }
+            .section-card { padding: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="background-glow"></div>
+    
+    <div class="container">
+        <header>
+            <div class="badge">AWS Cloud Demo</div>
+            <h1>ECS & ECR Quick Guide</h1>
+            <p class="subtitle">Panduan praktis untuk mendepoy aplikasi Node.js menggunakan containerization ke infrastruktur AWS.</p>
+        </header>
+
+        <section class="section-card">
+            <h2><div class="num">1</div> Persiapan Aplikasi</h2>
+            <p>Pastikan Anda memiliki <code>app.js</code> dan <code>Dockerfile</code> sederhana yang sudah disiapkan di direktori proyek Anda.</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <div class="dot-group">
+                        <div class="dot red"></div>
+                        <div class="dot yellow"></div>
+                        <div class="dot green"></div>
+                    </div>
+                    <span style="font-size: 0.8rem; color: #6b7280;">Dockerfile</span>
+                </div>
+                <pre><code><span class="keyword">FROM</span> node:18-slim
+<span class="keyword">WORKDIR</span> /app
+<span class="keyword">COPY</span> package*.json ./
+<span class="keyword">RUN</span> npm install --production
+<span class="keyword">COPY</span> . .
+<span class="keyword">EXPOSE</span> 3000
+<span class="keyword">CMD</span> ["node", "app.js"]</code></pre>
+            </div>
+        </section>
+
+        <section class="section-card">
+            <h2><div class="num">2</div> Push Image ke ECR</h2>
+            <p>Gunakan perintah berikut untuk mengirim Docker image lokal Anda ke Amazon ECR.</p>
+            
+            <div class="code-block">
+                <pre><code><span class="comment"># 1. Login ke ECR</span>
+aws ecr get-login-password | docker login --username AWS --password-stdin [ACCOUNT_ID].dkr.ecr.[REGION].amazonaws.com
+
+<span class="comment"># 2. Build Image</span>
+docker build -t ecs-ecr-demo .
+
+<span class="comment"># 3. Tag & Push</span>
+docker tag ecs-ecr-demo:latest [ECR_URI]:latest
+docker push [ECR_URI]:latest</code></pre>
+            </div>
+        </section>
+
+        <section class="section-card">
+            <h2><div class="num">3</div> Jalankan di ECS</h2>
+            <p>Setelah image tersedia di ECR, Anda bisa membuat <strong>Task Definition</strong> dan <strong>Service</strong> di ECS Fargate.</p>
+            
+            <div class="info-box">
+                <p><strong>Pro-tip:</strong> Gunakan Rolling Update agar aplikasi Anda tetap online saat ada pembaruan versi (no downtime).</p>
+            </div>
+
+            <div class="code-block">
+                <pre><code><span class="comment"># Paksa deployment ulang untuk mengambil image terbaru</span>
+aws ecs update-service --cluster ecs-lab-cluster \
+    --service ecs-lab-service \
+    --force-new-deployment</code></pre>
+            </div>
+        </section>
+
+        <section class="section-card" style="border: none; background: transparent; box-shadow: none;">
+            <a href="AWS_ECS_ECR_Tutorial.pdf" class="pdf-ref">
+                <div class="pdf-icon">📄</div>
+                <div>
+                    <h3 style="font-size: 1.2rem; margin-bottom: 0.5rem; color: var(--primary);">Referensi Utama: AWS_ECS_ECR_Tutorial.pdf</h3>
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">Buka dokumen PDF untuk panduan visual langkah demi langkah di AWS Console, konfigurasi VPC, dan Load Balancer.</p>
+                </div>
+            </a>
+        </section>
+
+        <footer>
+            &copy; 2026 ECR-CICD Project Demo. Built with ❤️ for AWS Learners.
+        </footer>
+    </div>
+</body>
+</html>
